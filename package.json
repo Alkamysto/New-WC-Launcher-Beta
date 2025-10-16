@@ -1,7 +1,7 @@
 {
     "name": "wc_launcher_new_beta",
     "preductname": "WalouCorp Launcher Beta",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "description": "Launcher Minecraft Beta de la Walou Corp",
     "main": "src/app.js",
     "author": {
