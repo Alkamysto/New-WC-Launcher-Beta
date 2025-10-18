@@ -1,13 +1,13 @@
 {
     "name": "waloucorp_launcher_beta",
     "preductname": "WalouCorp Launcher Beta",
-    "version": "1.0.11",
+    "version": "1.0.12",
     "description": "Launcher Minecraft Beta pour le serveur Night-Watch",
     "main": "src/app.js",
     "author": {
         "name": "Luuxis, Alkamysto, WalouCorp Development Team",
         "email": "contact@walou.corp",
-        "url": "https://night-watch.fr"
+        "url": "https://github.com/Alkamysto"
     },
     "url": "http://play.night-watch.fr",
     "scripts": {
@@ -39,6 +39,6 @@
     },
     "repository": {
         "type": "git",
-        "url": "git+github.com/Alkamysto/New-WC-Launcher-Beta.git"
+        "url": "git+https://github.com/Alkamysto/New-WC-Launcher-Beta.git"
     }
 }
