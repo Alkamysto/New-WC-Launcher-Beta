@@ -1,7 +1,7 @@
 {
-    "name": "waloucorp-launcher-beta",
+    "name": "waloucorp_launcher_beta",
     "preductname": "WalouCorp Launcher Beta",
-    "version": "1.0.5",
+    "version": "1.0.6",
     "description": "Launcher Minecraft Beta pour le serveur Night-Watch",
     "main": "src/app.js",
     "author": {
