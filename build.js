@@ -65,11 +65,11 @@ class Index {
                 generateUpdatesFilesForAllChannels: false,
                 appId: preductname,
                 productName: preductname,
-                copyright: 'Copyright © 2020-2025 WalouCorp Development Team.',
+                copyright: 'Copyright © 2020-2025 Waloucorp',
                 artifactName: "${productName}-${os}-${arch}.${ext}",
                 extraMetadata: { main: 'app/app.js' },
-                files: ["app/**/*", "package.json", "LICENSE.txt"],
-                directories: {
+                files: ["app/**/*", "package.json", "LICENSE.md"],
+                directories: { 
                     "output": "dist"
                 },
                 compression: 'normal',
@@ -80,6 +80,7 @@ class Index {
                 nodeGypRebuild: false,
                 npmRebuild: true,
                 publish: [{
+                    
                     provider: "github",
                     releaseType: 'release',
                 }],
@@ -109,7 +110,7 @@ class Index {
                         arch: "universal"
                     },
                     {
-                        target: "zip",
+                        target: "zip", 
                         arch: "universal"
                     }]
                 },
