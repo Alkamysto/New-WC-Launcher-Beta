@@ -68,7 +68,7 @@ class Index {
                 copyright: 'Copyright © 2020-2025 WalouCorp Development Team.',
                 artifactName: "${productName}-${os}-${arch}.${ext}",
                 extraMetadata: { main: 'app/app.js' },
-                files: ["app/**/*", "package.json", "LICENSE.md"],
+                files: ["app/**/*", "package.json", "LICENSE.txt"],
                 directories: {
                     "output": "dist"
                 },
