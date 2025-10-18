@@ -31,7 +31,9 @@ class Splash {
 
     async startAnimation() {
         let splashes = [
-            { "message": "Bienvenue sur EarthKingdoms !", "author": "OrgeAlexj06" }
+            { "message": "Dommage...", "author": "Walou" },
+            { "message": "Pierre Edouard ton goûter", "author": "Walou" },
+            { "message": "Quelqu'un à vu espace ?", "author": "Walou" }
         ];
         let splash = splashes[Math.floor(Math.random() * splashes.length)];
         this.splashMessage.textContent = splash.message;
