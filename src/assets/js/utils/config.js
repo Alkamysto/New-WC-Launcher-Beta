@@ -4,7 +4,6 @@
  */
 
 const pkg = require('../package.json');
-const nodeFetch = require("node-fetch");
 const convert = require('xml-js');
 let url = pkg.user ? `${pkg.url}/${pkg.user}` : pkg.url
 
@@ -14,7 +13,7 @@ let news = `${url}/launcher/news-launcher/news.json`;
 class Config {
     GetConfig() {
         return new Promise((resolve, reject) => {
-            nodeFetch(config).then(async config => {
+            fetch(config).then(async config => {
                 if(config.status === 200) return resolve(config.json());
                 else return reject({ error: { code: config.statusText, message: 'Server not accessible' } });
             }).catch(error => {
@@ -25,7 +24,7 @@ class Config {
 
     async getInstanceList() {
         let urlInstance = `${url}/files`
-        let instances = await nodeFetch(urlInstance).then(res => res.json()).catch(err => err)
+        let instances = await fetch(urlInstance).then(res => res.json()).catch(err => err)
         let instancesList = []
         instances = Object.entries(instances)
 
@@ -42,7 +41,7 @@ class Config {
 
         if(config.rss) {
             return new Promise((resolve, reject) => {
-                nodeFetch(config.rss).then(async config => {
+                fetch(config.rss).then(async config => {
                     if(config.status === 200) {
                         let news = [];
                         let response = await config.text()
@@ -64,7 +63,7 @@ class Config {
             })
         } else {
             return new Promise((resolve, reject) => {
-                nodeFetch(news).then(async config => {
+                fetch(news).then(async config => {
                     if(config.status === 200) return resolve(config.json());
                     else return reject({ error: { code: config.statusText, message: 'Server not accessible' } });
                 }).catch(error => {

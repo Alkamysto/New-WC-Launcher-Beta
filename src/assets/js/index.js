@@ -165,7 +165,7 @@ function sleep(ms) {
 }
 
 document.addEventListener("keydown", (e) => {
-    if (e.ctrlKey && e.shiftKey && e.key === 73 || e.key === 123) {
+    if (e.ctrlKey && e.shiftKey && e.code === 73 || e.code === 123) {
         ipcRenderer.send("update-window-dev-tools");
     }
 })

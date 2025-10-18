@@ -31,7 +31,7 @@ class Launcher {
 
     initLog() {
         document.addEventListener('keydown', e => {
-            if(e.ctrlKey && e.shiftKey && e.keyCode === 73 || e.keyCode === 123) {
+            if(e.ctrlKey && e.shiftKey && e.code === 73 || e.code === 123) {
                 ipcRenderer.send('main-window-dev-tools-close');
                 ipcRenderer.send('main-window-dev-tools');
             }
