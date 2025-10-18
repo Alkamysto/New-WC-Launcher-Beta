@@ -56,7 +56,7 @@ jobs:
           python-version: 3.x
 
       - name: Install Dependencies
-        run: npm ci
+        run: bun ci
         shell: bash
 
       - name: Build
