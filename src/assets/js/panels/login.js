@@ -53,13 +53,27 @@ class Login {
             });
 
             ipcRenderer.invoke('Microsoft-window', this.config.client_id).then(async account_connect => {
-                if(account_connect === 'cancel' || !account_connect) {
+                if (account_connect === 'cancel' || !account_connect) {
                     popupLogin.closePopup();
-                } else {
-                    await this.saveData(account_connect)
-                    popupLogin.closePopup();
+                    return;
                 }
-
+            
+                // Vérifie si le compte Microsoft possède Minecraft
+                const ownsMinecraft = await this.checkMinecraftOwnership(account_connect.access_token);
+            
+                if (!ownsMinecraft) {
+                    popupLogin.openPopup({
+                        title: 'Erreur',
+                        content: 'Ce compte Microsoft ne possède pas de version de Minecraft.',
+                        color: 'var(--red)',
+                        options: true
+                    });
+                    return;
+                }
+            
+                // Si le compte possède bien le jeu, on continue
+                await this.saveData(account_connect);
+                popupLogin.closePopup();
             }).catch(err => {
                 popupLogin.openPopup({
                     title: 'Erreur',
@@ -69,6 +83,24 @@ class Login {
             });
         })
     }
+
+    async checkMinecraftOwnership(accessToken) {
+        try {
+            const response = await fetch('https://api.minecraftservices.com/entitlements/mcstore', {
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`
+                }
+            });
+            const data = await response.json();
+    
+            // Si l’utilisateur a des produits liés à Minecraft, il possède le jeu
+            return Array.isArray(data.items) && data.items.length > 0;
+        } catch (error) {
+            console.error('Erreur de vérification Minecraft:', error);
+            return false;
+        }
+    }
+    
 
     async saveData(connectionData) {
         let configClient = await this.db.readData('configClient');
