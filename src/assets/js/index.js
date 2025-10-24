@@ -79,13 +79,9 @@ class Splash {
 	   ╚════════════════════════════════════════════════════╝ */
 	async checkUpdate() {
 		this.setStatus(`Recherche de mise à jour...`);
+		await sleep(50);
 
-		try {
-			await ipcRenderer.invoke('update-app');
-		} catch (err) {
-			return this.shutdown(`Erreur lors de la recherche de mise à jour : <br>${err.message}`);
-		}
-
+		// Enregistre les listeners **avant** l'invoke
 		ipcRenderer.once('updateAvailable', async () => {
 			this.setStatus(`Mise à jour disponible !`);
 			if (os.platform() === 'win32') {
@@ -112,6 +108,13 @@ class Splash {
 			});
 			this.setProgress(progress.transferred, progress.total);
 		});
+
+		// Appelle l'invoke **après** avoir enregistré les listeners
+		try {
+			await ipcRenderer.invoke('update-app');
+		} catch (err) {
+			return this.shutdown(`Erreur lors de la recherche de mise à jour : <br>${err.message}`);
+		}
 	}
 
 	/* ╔════════════════════════════════════════════════════╗
