@@ -1,110 +1,100 @@
-/**
- * ⚙️ Launcher Configuration Manager
- * ----------------------------------------------------------
- * Author  : Luuxis
- * License : CC-BY-NC 4.0 - https://creativecommons.org/licenses/by-nc/4.0
- * Purpose : Fetches launcher config, instances, and news
- *           with improved stability and performance
- * ----------------------------------------------------------
- */
-
-'use strict';
-
-/* ╔════════════════════════════════════════════════════╗
-   ║ 🔧 IMPORTS & INITIALIZATION                          ║
-   ╚════════════════════════════════════════════════════╝ */
 const pkg = require('../package.json');
 const convert = require('xml-js');
 
-const baseURL = pkg.user ? `${pkg.url}/${pkg.user}` : pkg.url;
-const configURL = `${baseURL}/launcher/config-launcher/config.json`;
-const newsURL = `${baseURL}/launcher/news-launcher/news.json`;
+const BASE_URL = pkg.user ? `${pkg.url}/${pkg.user}` : pkg.url;
 
-/* ╔════════════════════════════════════════════════════╗
-   ║ 🛠️ CONFIG CLASS                                      ║
-   ╚════════════════════════════════════════════════════╝ */
+const CONFIG_URL = `${BASE_URL}/launcher/config-launcher/config.json`;
+const NEWS_URL = `${BASE_URL}/launcher/news-launcher/news.json`;
+
+const FETCH_TIMEOUT = 8000;
+
 class Config {
+	async GetConfig() {
+		try {
+			const controller = new AbortController();
+			const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
 
-    /* ------------------------------------------------------
-       📄 GET LAUNCHER CONFIG
-       Returns JSON config or error if server is unreachable
-    ------------------------------------------------------ */
-    async GetConfig() {
-        try {
-            const res = await fetch(configURL);
-            if (!res.ok) {
-                throw { code: res.statusText, message: 'Server not accessible' };
-            }
-            return await res.json();
-        } catch (error) {
-            return { error };
-        }
-    }
+			const res = await fetch(CONFIG_URL, { signal: controller.signal });
+			clearTimeout(timeout);
 
-    /* ------------------------------------------------------
-       🗂️ GET INSTANCES LIST
-       Fetches available instances from server
-    ------------------------------------------------------ */
-    async getInstanceList() {
-        try {
-            const res = await fetch(`${baseURL}/files`);
-            if (!res.ok) throw new Error('Unable to fetch instances');
+			if (!res.ok) throw new Error(`Serveur inaccessible (${res.status})`);
 
-            const instances = await res.json();
-            return Object.entries(instances).map(([name, data]) => {
-                return { ...data, name };
-            });
-        } catch (error) {
-            console.error('[Config] Error fetching instances:', error);
-            return [];
-        }
-    }
+			return await res.json();
+		} catch (err) {
+			console.error('❌ GetConfig error:', err);
+			return { error: { message: err.message || String(err) } };
+		}
+	}
 
-    /* ------------------------------------------------------
-       📰 GET NEWS
-       Fetches RSS news if available, otherwise JSON news
-    ------------------------------------------------------ */
-    async getNews() {
-        const configData = (await this.GetConfig()) || {};
+	async getInstanceList() {
+		try {
+			const controller = new AbortController();
+			const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
 
-        // If RSS feed defined
-        if (configData.rss) {
-            try {
-                const res = await fetch(configData.rss);
-                if (!res.ok) throw new Error('RSS feed not accessible');
+			const res = await fetch(`${BASE_URL}/files`, {
+				signal: controller.signal,
+			});
+			clearTimeout(timeout);
 
-                let xmlText = await res.text();
-                let rssData = convert.xml2json(xmlText, { compact: true });
-                let items = JSON.parse(rssData)?.rss?.channel?.item || [];
+			if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-                if (!Array.isArray(items)) items = [items];
+			const json = await res.json();
+			return Object.entries(json).map(([name, data]) => ({ name, ...data }));
+		} catch (err) {
+			console.error('❌ getInstanceList error:', err);
+			return [];
+		}
+	}
 
-                return items.map((item) => ({
-                    title: item.title?._text || '',
-                    content: item['content:encoded']?._text || '',
-                    author: item['dc:creator']?._text || '',
-                    publish_date: item.pubDate?._text || '',
-                }));
-            } catch (error) {
-                console.error('[Config] Error fetching RSS news:', error);
-                return [];
-            }
-        }
+	async getNews() {
+		try {
+			const cfg = await this.GetConfig();
+			if (cfg?.rss) return this._fetchRSSFeed(cfg.rss);
 
-        // Fallback to JSON news
-        try {
-            const res = await fetch(newsURL);
-            if (!res.ok) throw new Error('JSON news not accessible');
+			const controller = new AbortController();
+			const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
 
-            return await res.json();
-        } catch (error) {
-            console.error('[Config] Error fetching JSON news:', error);
-            return [];
-        }
-    }
+			const res = await fetch(NEWS_URL, { signal: controller.signal });
+			clearTimeout(timeout);
+
+			if (!res.ok) throw new Error(`Serveur news inaccessible (${res.status})`);
+
+			return await res.json();
+		} catch (err) {
+			console.error('❌ getNews error:', err);
+			return [];
+		}
+	}
+
+	async _fetchRSSFeed(rssUrl) {
+		try {
+			const controller = new AbortController();
+			const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
+
+			const res = await fetch(rssUrl, { signal: controller.signal });
+			clearTimeout(timeout);
+
+			if (!res.ok) throw new Error(`Flux RSS inaccessible (${res.status})`);
+
+			const xmlText = await res.text();
+			const parsed = JSON.parse(convert.xml2json(xmlText, { compact: true }))
+				?.rss?.channel?.item;
+
+			if (!parsed) return [];
+
+			const items = Array.isArray(parsed) ? parsed : [parsed];
+
+			return items.map((item) => ({
+				title: item?.title?._text || 'Sans titre',
+				content: item?.['content:encoded']?._text || '',
+				author: item?.['dc:creator']?._text || 'Inconnu',
+				publish_date: item?.pubDate?._text || 'Date inconnue',
+			}));
+		} catch (err) {
+			console.error('❌ _fetchRSSFeed error:', err);
+			return [];
+		}
+	}
 }
 
-/* ╔════════════════════════════════════════════════════╗
-   ║ 🚀 EXPORT CONFIG INSTANCE                             ║
-   ╚════════════════════════════════════════════════════╝ */
 export default new Config();

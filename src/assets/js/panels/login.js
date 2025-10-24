@@ -1,14 +1,4 @@
-/**
- * 🧩 Login Page Manager
- * ----------------------------------------------------------
- * Author  : Luuxis
- * License : CC-BY-NC 4.0 - https://creativecommons.org/licenses/by-nc/4.0
- * Purpose : Frontend management for login.html (Microsoft login)
- * ----------------------------------------------------------
- */
-
 const { ipcRenderer } = require('electron');
-
 import {
 	popup,
 	database,
@@ -22,138 +12,188 @@ import {
 class Login {
 	static id = 'login';
 
-	/* ╔════════════════════════════════════════════════════╗
-	   ║  🔑  INITIALIZATION                               ║
-	   ╚════════════════════════════════════════════════════╝ */
-	async init(config) {
-		this.config = config;
-		this.db = new database();
+	async init(cfg) {
+		try {
+			this.config = cfg;
+			this.db = new database();
 
-		if (typeof this.config.online === 'boolean') {
-			await this.getMicrosoft();
+			if (typeof this.config?.online === 'boolean') {
+				await this.initMicrosoftLogin();
+			}
+		} catch (err) {
+			console.error('💥 Login.init error:', err);
 		}
 	}
 
-	/* ╔════════════════════════════════════════════════════╗
-	   ║  🌐  MICROSOFT LOGIN                               ║
-	   ╚════════════════════════════════════════════════════╝ */
-	async getMicrosoft() {
-		console.log('Initializing Microsoft login...');
+	async initMicrosoftLogin() {
 		const popupLogin = new popup();
 		const loginHome = document.querySelector('.login-home');
 		const microsoftBtn = document.querySelector('.connect-home');
 
 		if (loginHome) loginHome.style.display = 'block';
-		if (!microsoftBtn) return;
+		if (!microsoftBtn) return console.warn('⚠️ Bouton Microsoft introuvable');
 
-		microsoftBtn.addEventListener('click', async () => {
+		if (this.microsoftHandler)
+			microsoftBtn.removeEventListener('click', this.microsoftHandler);
+
+		this.microsoftHandler = async () => {
 			popupLogin.openPopup({
-				title: 'Connexion en cours',
+				title: '🔄 Connexion',
 				content: 'Veuillez patienter...',
 				color: 'var(--dark)',
 			});
 
 			try {
-				const account_connect = await ipcRenderer.invoke('Microsoft-window', this.config.client_id);
-				if (!account_connect || account_connect === 'cancel') return popupLogin.closePopup();
+				const accountConnect = await ipcRenderer.invoke(
+					'Microsoft-window',
+					this.config.client_id
+				);
 
-				const ownsMinecraft = await this.checkMinecraftOwnership(account_connect.access_token);
+				if (!accountConnect || accountConnect === 'cancel') {
+					popupLogin.closePopup();
+					return;
+				}
+
+				const ownsMinecraft = await this.checkMinecraftOwnership(
+					accountConnect.access_token
+				);
 				if (!ownsMinecraft) {
-					return popupLogin.openPopup({
-						title: 'Erreur',
+					popupLogin.openPopup({
+						title: '❌ Erreur',
 						content: 'Ce compte Microsoft ne possède pas de compte Minecraft.',
 						color: 'var(--red)',
 						options: true,
 					});
+					return;
 				}
 
-				await this.saveData(account_connect);
+				await this.saveData(accountConnect);
+				popupLogin.closePopup();
 			} catch (err) {
+				console.error('💥 Microsoft login error:', err);
 				popupLogin.openPopup({
-					title: 'Erreur',
-					content: err?.message || err,
+					title: '💥 Erreur',
+					content: err?.message || String(err),
 					options: true,
 				});
-			} finally {
-				popupLogin.closePopup();
 			}
-		});
+		};
+
+		microsoftBtn.addEventListener('click', this.microsoftHandler);
 	}
 
-	/* ╔════════════════════════════════════════════════════╗
-	   ║  🎮  CHECK MINECRAFT OWNERSHIP                     ║
-	   ╚════════════════════════════════════════════════════╝ */
 	async checkMinecraftOwnership(accessToken) {
+		if (!accessToken || typeof accessToken !== 'string') return false;
+
+		const url = 'https://api.minecraftservices.com/entitlements/mcstore';
+		const controller = new AbortController();
+		const timeout = setTimeout(() => controller.abort(), 8000);
+
 		try {
-			const response = await fetch('https://api.minecraftservices.com/entitlements/mcstore', {
-				headers: { Authorization: `Bearer ${accessToken}` },
+			const res = await fetch(url, {
+				method: 'GET',
+				headers: {
+					Authorization: `Bearer ${accessToken}`,
+					Accept: 'application/json',
+				},
+				signal: controller.signal,
 			});
-			const data = await response.json();
+			clearTimeout(timeout);
+
+			if (!res.ok) {
+				console.warn('⚠️ Minecraft ownership check failed:', res.status);
+				return false;
+			}
+
+			const data = await res.json();
 			return Array.isArray(data.items) && data.items.length > 0;
-		} catch (error) {
-			console.error('Erreur de vérification Minecraft:', error);
+		} catch (err) {
+			clearTimeout(timeout);
+			console.error('💥 Minecraft ownership error:', err);
 			return false;
 		}
 	}
 
-	/* ╔════════════════════════════════════════════════════╗
-	   ║  💾  SAVE ACCOUNT DATA                              ║
-	   ╚════════════════════════════════════════════════════╝ */
 	async saveData(connectionData) {
-		let configClient = await this.db.readData('configClient');
-		const existingAccounts = await this.db.readAllData('accounts');
-		const existingAccount = existingAccounts.find(acc => acc.name === connectionData.name);
-
-		// Si le compte existe déjà
-		if (existingAccount) {
-			const popupInfo = new popup();
-			popupInfo.openPopup({
-				title: 'Compte existant',
-				content: `Le compte "${connectionData.name}" existe déjà. Utilisation du compte existant pour préserver votre inventaire.`,
-				color: 'green',
-				background: false,
-			});
-
-			configClient.account_selected = existingAccount.ID;
-			await this.db.updateData('configClient', configClient);
-			await Promise.all([
-				addAccount(existingAccount),
-				accountSelect(existingAccount),
-				changePanel('home')
-			]);
+		if (!connectionData || typeof connectionData !== 'object') {
+			console.error('💥 Données de connexion invalides');
 			return;
 		}
 
-		// Création d’un nouveau compte
-		const account = await this.db.createData('accounts', connectionData);
-		const instancesList = await config.getInstanceList();
-		configClient.account_selected = account.ID;
+		try {
+			const configClient = (await this.db.readData('configClient')) || {};
+			const allAccounts = await this.db.readAllData('accounts');
 
-		// Vérification de la whitelist et sélection de l’instance
-		if (instancesList.length > 0) {
+			const existing = allAccounts.find(
+				(acc) =>
+					(acc.name && acc.name === connectionData.name) ||
+					(acc.uuid && acc.uuid === connectionData.uuid)
+			);
+
+			if (existing) {
+				const popupInfo = new popup();
+				popupInfo.openPopup({
+					title: 'ℹ️ Compte existant',
+					content: `Le compte "${connectionData.name}" existe déjà.`,
+					color: 'green',
+					background: false,
+				});
+
+				configClient.account_selected = existing.ID;
+				await this.db.updateData('configClient', configClient);
+				await addAccount(existing);
+				await accountSelect(existing);
+				await changePanel('home');
+				return;
+			}
+
+			const account = await this.db.createData('accounts', connectionData);
+			configClient.account_selected = account.ID;
+
+			const instancesList = await config.getInstanceList();
 			const instanceSelect = configClient.instance_selct;
-			for (const instance of instancesList) {
-				if (!instance.whitelistActive) continue;
-				const whitelistMatch = instance.whitelist?.includes(account.name);
-				if (!whitelistMatch && instance.name === instanceSelect) {
-					const newInstanceSelect = instancesList.find(i => !i.whitelistActive);
-					configClient.instance_selct = newInstanceSelect?.name || instanceSelect;
-					await setStatus(newInstanceSelect?.status || 'offline');
-					break;
+
+			if (Array.isArray(instancesList)) {
+				for (const instance of instancesList) {
+					if (instance.whitelistActive) {
+						const whitelisted = (instance.whitelist || []).includes(
+							account.name
+						);
+						if (!whitelisted && instance.name === instanceSelect) {
+							const fallback =
+								instancesList.find((i) => !i.whitelistActive) ||
+								instancesList[0];
+							if (fallback) {
+								configClient.instance_selct = fallback.name;
+								await setStatus(fallback.status);
+							}
+						}
+					}
 				}
 			}
-		}
 
-		await this.db.updateData('configClient', configClient);
-		await Promise.all([
-			addAccount(account),
-			accountSelect(account),
-			changePanel('home')
-		]);
+			await this.db.updateData('configClient', configClient);
+			await addAccount(account);
+			await accountSelect(account);
+			await changePanel('home');
+		} catch (err) {
+			console.error('💥 saveData error:', err);
+			const p = new popup();
+			p.openPopup({
+				title: '💥 Erreur lors de la sauvegarde',
+				content: err?.message || String(err),
+				options: true,
+			});
+		}
+	}
+
+	destroy() {
+		const microsoftBtn = document.querySelector('.connect-home');
+		if (microsoftBtn && this.microsoftHandler) {
+			microsoftBtn.removeEventListener('click', this.microsoftHandler);
+			this.microsoftHandler = null;
+		}
 	}
 }
 
-/* ╔════════════════════════════════════════════════════╗
-   ║ 🚀 EXPORT LOGIN CLASS                             ║
-   ╚════════════════════════════════════════════════════╝ */
 export default Login;

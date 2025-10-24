@@ -1,107 +1,65 @@
-/**
- * 🖥️ Main Window Manager (Frontend)
- * ----------------------------------------------------------
- * Author  : Luuxis
- * License : CC-BY-NC 4.0 - https://creativecommons.org/licenses/by-nc/4.0
- * Purpose : Handles creation, display, and destruction of the
- *           main launcher window frontend.
- * ----------------------------------------------------------
- */
-
-'use strict';
-
 const { app, BrowserWindow, Menu } = require('electron');
 const path = require('path');
 const os = require('os');
 const pkg = require('../../../../package.json');
 
-// ╔════════════════════════════════════════════════════╗
-// ║ ⚙️  ENVIRONMENT CONFIGURATION                        ║
-// ╚════════════════════════════════════════════════════╝
 const dev = process.env.DEV_TOOL === 'open';
+
 let mainWindow;
 
-// ╔════════════════════════════════════════════════════╗
-// ║ 🪟  GET CURRENT WINDOW REFERENCE                     ║
-// ╚════════════════════════════════════════════════════╝
 function getWindow() {
-    return mainWindow;
+	return mainWindow;
 }
 
-// ╔════════════════════════════════════════════════════╗
-// ║ ❌  DESTROY WINDOW                                   ║
-// ╚════════════════════════════════════════════════════╝
 function destroyWindow() {
-    if (!mainWindow) return;
-    try {
-        if (!mainWindow.isDestroyed()) mainWindow.close();
-    } catch (err) {
-        console.warn('⚠️ Error while closing main window:', err);
-    } finally {
-        mainWindow = undefined;
-        app.quit();
-    }
+	if (!mainWindow) return;
+	app.quit();
+	mainWindow = undefined;
+	console.log('🪄 MainWindow destroyed');
 }
 
-// ╔════════════════════════════════════════════════════╗
-// ║ 🛠️  CREATE MAIN WINDOW                                 ║
-// ╚════════════════════════════════════════════════════╝
 function createWindow() {
-    // Assure qu'aucune autre instance n'est ouverte
-    destroyWindow();
+	destroyWindow();
 
-    mainWindow = new BrowserWindow({
-        title: `${pkg.productName || 'Launcher'} ${pkg.version}`,
-        width: 1280,
-        height: 900,
-        minWidth: 1280,
-        minHeight: 900,
-        resizable: true,
-        icon: path.join(app.getAppPath(), `src/assets/images/icon.${os.platform() === 'win32' ? 'ico' : 'png'}`),
-        frame: true,
-        show: false, // plus fluide, on affiche après "ready-to-show"
-        backgroundColor: '#000000', // évite flash blanc à l’ouverture
-        webPreferences: {
-            contextIsolation: false,
-            nodeIntegration: true,
-            devTools: dev, // plus sûr, évite d’ouvrir devtools en prod
-        },
-    });
+	mainWindow = new BrowserWindow({
+		title: `${pkg.preductname} ${pkg.version}`,
+		width: 1280,
+		height: 900,
+		minWidth: 1280,
+		minHeight: 900,
+		resizable: true,
+		frame: true,
+		show: false,
+		icon: `./src/assets/images/icon.${os.platform() === 'win32' ? 'ico' : 'png'}`,
+		webPreferences: {
+			contextIsolation: false,
+			nodeIntegration: true,
+		},
+	});
 
-    // ╔════════════════════════════════════════════════════╗
-    // ║ 🗂️  WINDOW MENU CONFIGURATION                       ║
-    // ╚════════════════════════════════════════════════════╝
-    Menu.setApplicationMenu(null);
-    mainWindow.setMenuBarVisibility(false);
+	Menu.setApplicationMenu(null);
+	mainWindow.setMenuBarVisibility(false);
 
-    // ╔════════════════════════════════════════════════════╗
-    // ║ 🌐  LOAD FRONTEND HTML                               ║
-    // ╚════════════════════════════════════════════════════╝
-    const mainPath = path.join(app.getAppPath(), 'src/launcher.html');
-    mainWindow.loadFile(mainPath).catch(err => {
-        console.error('❌ Failed to load launcher.html:', err);
-    });
+	const launcherFile = path.join(app.getAppPath(), 'src/launcher.html');
+	mainWindow.loadFile(launcherFile).catch((err) => {
+		console.error('💥 Failed to load launcher HTML:', err);
+	});
 
-    // ╔════════════════════════════════════════════════════╗
-    // ║ 🔔  SHOW WINDOW WHEN READY                            ║
-    // ╚════════════════════════════════════════════════════╝
-    mainWindow.once('ready-to-show', () => {
-        if (!mainWindow || mainWindow.isDestroyed()) return;
-        if (dev) mainWindow.webContents.openDevTools({ mode: 'detach' });
-        mainWindow.show();
-    });
+	mainWindow.once('ready-to-show', () => {
+		if (!mainWindow) return;
+		if (dev) mainWindow.webContents.openDevTools({ mode: 'detach' });
+		mainWindow.show();
+		console.log('🚀 MainWindow ready and shown');
+	});
 
-    // Gestion de fermeture propre
-    mainWindow.on('closed', () => {
-        mainWindow = undefined;
-    });
+	mainWindow.on('closed', () => {
+		mainWindow = undefined;
+		console.log('🪄 MainWindow closed');
+	});
 }
 
-// ╔════════════════════════════════════════════════════╗
-// ║ 📦  MODULE EXPORTS                                   ║
-// ╚════════════════════════════════════════════════════╝
 module.exports = {
-    getWindow,
-    createWindow,
-    destroyWindow,
+	getWindow,
+	createWindow,
+	destroyWindow,
 };

@@ -1,115 +1,94 @@
-/**
- * ⚙️  Electron Builder Script - Launcher Builder
- * ---------------------------------------------
- * Author  : Luuxis
- * License : CC-BY-NC 4.0 - https://creativecommons.org/licenses/by-nc/4.0
- * Purpose : Automates build process, obfuscation, and icon generation for the launcher.
- */
-
-const fs = require("fs").promises;
+const fs = require("fs");
 const path = require("path");
 const builder = require("electron-builder");
 const JavaScriptObfuscator = require("javascript-obfuscator");
-const fetch = require("node-fetch");
+const nodeFetch = require("node-fetch");
 const png2icons = require("png2icons");
 const Jimp = require("jimp");
 
 const { preductname } = require("./package.json");
 
-/* ╔════════════════════════════════════════════════════╗
-   ║  🏗️  LAUNCHER BUILDER CLASS                        ║
-   ╚════════════════════════════════════════════════════╝ */
-class Index {
+class LauncherBuilder {
     constructor() {
-        this.shouldObfuscate = true;
-        this.filesList = [];
+        this.obf = true;
+        this.Fileslist = [];
     }
 
-    /* ╔════════════════════════════════════════════════════╗
-       ║  🚀  ENTRY POINT & ARGUMENT PARSING                ║
-       ╚════════════════════════════════════════════════════╝ */
     async init() {
-        const args = this.parseArgs(process.argv);
-
-        // --icon=<url>
-        if (args.icon) await this.setIcon(args.icon);
-
-        // --obf=true/false
-        if (args.obf !== undefined) {
-            this.shouldObfuscate = args.obf;
-            this.filesList = await this.getFiles("src");
-        }
-
-        // --build=platform
-        if (args.build === "platform") await this.buildPlatform();
-    }
-
-    /**
-     * 🧩 Parse command line arguments
-     * Converts '--key=value' to { key: value }
-     */
-    parseArgs(argv) {
-        return argv.slice(2).reduce((acc, arg) => {
-            const [key, value] = arg.replace(/^--/, "").split("=");
-            acc[key] = value === "true" ? true : value === "false" ? false : value;
-            return acc;
-        }, {});
-    }
-
-    /* ╔════════════════════════════════════════════════════╗
-       ║  🔒  CODE OBFUSCATION & FILE PROCESSING            ║
-       ╚════════════════════════════════════════════════════╝ */
-    async obfuscate() {
-        // Clear previous build folder
         try {
-            await fs.rm("./app", { recursive: true, force: true });
-        } catch {}
-
-        // Process files in parallel
-        const tasks = this.filesList.map(async (filePath) => {
-            const relPath = path.relative("src", filePath);
-            const destPath = path.join("app", relPath);
-            await fs.mkdir(path.dirname(destPath), { recursive: true });
-
-            const ext = path.extname(filePath);
-
-            // JS Files: Obfuscate or Copy
-            if (ext === ".js") {
-                const code = (await fs.readFile(filePath, "utf8")).replace(/src\//g, "app/");
-                if (this.shouldObfuscate) {
-                    console.log(`🔒 Obfuscating ${filePath}`);
-                    const obfuscated = JavaScriptObfuscator.obfuscate(code, {
-                        optionsPreset: "high-obfuscation",
-                        disableConsoleOutput: false,
-                    });
-                    await fs.writeFile(destPath, obfuscated.getObfuscatedCode(), "utf8");
-                } else {
-                    console.log(`📄 Copying ${filePath}`);
-                    await fs.writeFile(destPath, code, "utf8");
+            for (const arg of process.argv) {
+                if (arg.startsWith("--icon=")) {
+                    console.log("🖌️ Nouvelle icône détectée !");
+                    await this.iconSet(arg.split("=")[1]);
+                } else if (arg.startsWith("--obf=")) {
+                    this.obf = JSON.parse(arg.split("=")[1]);
+                    console.log(`🔧 Obfuscation: ${this.obf ? "ON" : "OFF"}`);
+                    this.Fileslist = this.getFiles("src");
+                } else if (arg.startsWith("--build=")) {
+                    const buildType = arg.split("=")[1];
+                    if (buildType === "platform") await this.buildPlatform();
                 }
-            } else {
-                // Other assets
-                await fs.copyFile(filePath, destPath);
             }
-        });
-
-        await Promise.all(tasks);
+        } catch (err) {
+            console.error("💥 [INIT ERROR] Quelque chose a explosé :", err);
+        }
     }
 
-    /* ╔════════════════════════════════════════════════════╗
-       ║  🧱  ELECTRON BUILD CONFIGURATION                  ║
-       ╚════════════════════════════════════════════════════╝ */
-    async buildPlatform() {
+    async Obfuscate() {
         try {
-            await this.obfuscate();
+            if (fs.existsSync("./app")) {
+                console.log("🧹 Nettoyage du dossier app...");
+                fs.rmSync("./app", { recursive: true, force: true });
+            }
 
-            console.log("⚙️ Building application...");
+            for (const filePath of this.Fileslist) {
+                const fileName = path.basename(filePath);
+                const ext = path.extname(fileName).slice(1);
+                const folder = filePath.replace(`/${fileName}`, "").replace("src", "app");
 
+                if (!fs.existsSync(folder)) fs.mkdirSync(folder, { recursive: true });
+
+                if (ext === "js") {
+                    let code = fs.readFileSync(filePath, "utf8");
+                    code = code.replace(/src\//g, "app/");
+
+                    if (this.obf) {
+                        console.log(`🛠️ Obfuscating ${filePath}...`);
+                        const obf = JavaScriptObfuscator.obfuscate(code, {
+                            compact: true,
+                            controlFlowFlattening: true,
+                            deadCodeInjection: true,
+                            debugProtection: true,
+                            disableConsoleOutput: false,
+                            rotateStringArray: true,
+                        });
+                        fs.writeFileSync(`${folder}/${fileName}`, obf.getObfuscatedCode(), "utf8");
+                    } else {
+                        console.log(`📄 Copie simple de ${filePath}`);
+                        fs.writeFileSync(`${folder}/${fileName}`, code, "utf8");
+                    }
+                } else {
+                    fs.copyFileSync(filePath, `${folder}/${fileName}`);
+                    console.log(`🎨 Copie d’asset: ${filePath}`);
+                }
+            }
+
+            console.log("✅ Tous les fichiers sont prêts pour le build !");
+        } catch (err) {
+            console.error("💥 [OBFUSCATE ERROR] Problème lors du traitement des fichiers :", err);
+        }
+    }
+
+    async buildPlatform() {
+        await this.Obfuscate();
+
+        try {
+            console.log("🚧 Démarrage du build multi-plateforme...");
             await builder.build({
                 config: {
+                    generateUpdatesFilesForAllChannels: false,
                     appId: preductname,
                     productName: preductname,
-                    copyright: "Copyright © 2020-2025 Luuxis x WalouCorp",
                     artifactName: "${productName}-${os}-${arch}.${ext}",
                     extraMetadata: { main: "app/app.js" },
                     files: ["app/**/*", "package.json", "LICENSE.md"],
@@ -120,17 +99,16 @@ class Index {
                     nodeGypRebuild: false,
                     npmRebuild: true,
                     publish: [{ provider: "github", releaseType: "release" }],
-
-                    /* 🪟 Windows Configuration */
-                    win: { icon: "./app/assets/images/icon.ico", target: [{ target: "nsis", arch: "x64" }] },
+                    win: {
+                        icon: "./app/assets/images/icon.ico",
+                        target: [{ target: "nsis", arch: "x64" }],
+                    },
                     nsis: {
                         oneClick: true,
                         allowToChangeInstallationDirectory: false,
                         createDesktopShortcut: true,
-                        runAfterFinish: true
+                        runAfterFinish: true,
                     },
-
-                    /* 🍎 macOS Configuration */
                     mac: {
                         icon: "./app/assets/images/icon.icns",
                         category: "public.app-category.games",
@@ -141,76 +119,66 @@ class Index {
                         singleArchFiles: "node_modules/sqlite3/**/*",
                         target: [
                             { target: "dmg", arch: "universal" },
-                            { target: "zip", arch: "universal" }
-                        ]
+                            { target: "zip", arch: "universal" },
+                        ],
                     },
                     dmg: {
                         sign: false,
                         contents: [
                             { x: 130, y: 220 },
-                            { x: 410, y: 220, type: "link", path: "/Applications" }
+                            { x: 410, y: 220, type: "link", path: "/Applications" },
                         ],
                         artifactName: "${productName}-mac-${arch}.${ext}",
-                        format: "ULFO"
+                        format: "ULFO",
                     },
-
-                    /* 🐧 Linux Configuration */
-                    linux: { icon: "./app/assets/images/icon.png", target: [{ target: "AppImage", arch: "x64" }] }
-                }
+                    linux: {
+                        icon: "./app/assets/images/icon.png",
+                        target: [{ target: "AppImage", arch: "x64" }],
+                    },
+                },
             });
 
-            console.log("✅ Build successful!");
+            console.log("🎉 Build terminé avec succès !");
         } catch (err) {
-            console.error("❌ Build failed:", err);
+            console.error("💥 Build échoué !", err);
         }
     }
 
-    /* ╔════════════════════════════════════════════════════╗
-       ║  📁  FILE EXPLORATION UTILITY                     ║
-       ╚════════════════════════════════════════════════════╝ */
-    async getFiles(dir) {
-        const files = [];
-        try {
-            const entries = await fs.readdir(dir, { withFileTypes: true });
-            await Promise.all(entries.map(async (entry) => {
-                const entryPath = path.join(dir, entry.name);
-                if (entry.isDirectory()) files.push(...await this.getFiles(entryPath));
-                else files.push(entryPath);
-            }));
-        } catch {}
-        return files;
+    getFiles(dirPath, fileList = []) {
+        if (!fs.existsSync(dirPath)) return fileList;
+
+        const entries = fs.readdirSync(dirPath);
+        for (const entry of entries) {
+            const fullPath = path.join(dirPath, entry);
+            if (fs.statSync(fullPath).isDirectory()) {
+                this.getFiles(fullPath, fileList);
+            } else {
+                fileList.push(fullPath);
+            }
+        }
+
+        return fileList;
     }
 
-    /* ╔════════════════════════════════════════════════════╗
-       ║  🖼️  ICON GENERATION (ICNS, ICO, PNG)             ║
-       ╚════════════════════════════════════════════════════╝ */
-    async setIcon(url) {
+    async iconSet(url) {
         try {
-            console.log(`🪄 Generating icons from: ${url}`);
-            const res = await fetch(url);
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const buffer = await res.buffer();
+            console.log(`🌐 Téléchargement de l'icône depuis: ${url}`);
+            const res = await nodeFetch(url);
+            if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
 
+            let buffer = await res.buffer();
             const image = await Jimp.read(buffer);
-            const resized = await image.resize(256, 256).getBufferAsync(Jimp.MIME_PNG);
+            buffer = await image.resize(256, 256).getBufferAsync(Jimp.MIME_PNG);
 
-            const iconDir = "src/assets/images";
-            await fs.mkdir(iconDir, { recursive: true });
+            fs.writeFileSync("src/assets/images/icon.icns", png2icons.createICNS(buffer, png2icons.BILINEAR, 0));
+            fs.writeFileSync("src/assets/images/icon.ico", png2icons.createICO(buffer, png2icons.HERMITE, 0, false));
+            fs.writeFileSync("src/assets/images/icon.png", buffer);
 
-            await Promise.all([
-                fs.writeFile(`${iconDir}/icon.icns`, png2icons.createICNS(resized, png2icons.BILINEAR, 0)),
-                fs.writeFile(`${iconDir}/icon.ico`, png2icons.createICO(resized, png2icons.HERMITE, 0, false)),
-                fs.writeFile(`${iconDir}/icon.png`, resized)
-            ]);
-
-            console.log("🖼️ New icon set successfully!");
+            console.log("✨ Nouvelle icône appliquée avec succès !");
         } catch (err) {
-            console.error("⚠️ Failed to set icon:", err.message);
+            console.error("💥 [ICON ERROR] Impossible de récupérer ou traiter l'icône :", err);
         }
     }
 }
 
-/* ╔════════════════════════════════════════════════════╗
-   ║  🏁  START BUILD PROCESS                            ║
-   ╚════════════════════════════════════════════════════╝ */
-new Index().init();
+new LauncherBuilder().init();

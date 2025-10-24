@@ -1,222 +1,228 @@
-/**
- * 🧩 Launcher Utilities
- * ----------------------------------------------------------
- * Author  : Luuxis
- * License : CC-BY-NC 4.0 - https://creativecommons.org/licenses/by-nc/4.0
- * Purpose : Core frontend utilities for the Minecraft Launcher
- * ----------------------------------------------------------
- */
-
 const { ipcRenderer } = require('electron');
 const { Status } = require('minecraft-java-core');
-const fs = require('fs').promises;
+const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const pkg = require('../package.json');
 
 import config from './utils/config.js';
 import database from './utils/database.js';
 import logger from './utils/logger.js';
 import popup from './utils/popup.js';
-import { skin2D } from './utils/skin.js';
+import Skin2D from './utils/skin.js';
 import slider from './utils/slider.js';
 
-/* ╔════════════════════════════════════════════════════╗
-   ║  🌄  DYNAMIC BACKGROUND MANAGEMENT                 ║
-   ╚════════════════════════════════════════════════════╝ */
 async function setBackground(theme) {
-	if (typeof theme === 'undefined') {
-		const db = new database();
-		const configClient = await db.readData('configClient');
-		theme = configClient?.launcher_config?.theme || 'auto';
-		theme = await ipcRenderer.invoke('is-dark-theme', theme);
-	}
-
-	const body = document.body;
-	body.className = theme ? 'dark global' : 'light global';
-
-	let background;
-	const basePath = path.join(__dirname, 'assets/images/background');
-
-	// 🎉 Easter Egg chance (0.5%)
-	const easterPath = path.join(basePath, 'easterEgg');
-	if (await exists(easterPath) && Math.random() < 0.005) {
-		const backgrounds = await fs.readdir(easterPath);
-		const selected = backgrounds[Math.floor(Math.random() * backgrounds.length)];
-		background = `url(./assets/images/background/easterEgg/${selected})`;
-	} 
-	// 🎨 Theme backgrounds
-	else {
-		const themeDir = path.join(basePath, theme ? 'dark' : 'light');
-		if (await exists(themeDir)) {
-			const backgrounds = await fs.readdir(themeDir);
-			const selected = backgrounds[Math.floor(Math.random() * backgrounds.length)];
-			background = `linear-gradient(#00000080, #00000080), url(./assets/images/background/${theme ? 'dark' : 'light'}/${selected})`;
-		}
-	}
-
-	body.style.backgroundImage = background ? background : theme ? '#000' : '#fff';
-	body.style.backgroundSize = 'cover';
-	body.style.backgroundRepeat = 'no-repeat';
-}
-
-/**
- * Helper to check if a path exists asynchronously
- */
-async function exists(p) {
 	try {
-		await fs.access(p);
-		return true;
-	} catch {
-		return false;
+		if (typeof theme === 'undefined') {
+			const db = new database();
+			const configClient = await db.readData('configClient');
+			theme = configClient?.launcher_config?.theme || 'auto';
+			theme = await ipcRenderer.invoke('is-dark-theme', theme);
+		}
+
+		const body = document.body;
+		body.className = theme ? 'dark global' : 'light global';
+
+		let background = '';
+
+		const bgDir = path.join(
+			__dirname,
+			'assets/images/background',
+			Math.random() < 0.005 ? 'easterEgg' : theme ? 'dark' : 'light'
+		);
+
+		if (fs.existsSync(bgDir)) {
+			const backgrounds = fs.readdirSync(bgDir);
+			if (backgrounds.length > 0) {
+				const selected =
+					backgrounds[Math.floor(Math.random() * backgrounds.length)];
+				background =
+					Math.random() < 0.005
+						? `url(./assets/images/background/easterEgg/${selected})`
+						: `linear-gradient(#00000080, #00000080), url(./assets/images/background/${theme ? 'dark' : 'light'}/${selected})`;
+			}
+		}
+
+		body.style.backgroundImage = background || (theme ? '#000' : '#fff');
+		body.style.backgroundSize = 'cover';
+		body.style.backgroundRepeat = 'no-repeat';
+	} catch (err) {
+		console.error('💥 setBackground error:', err);
 	}
 }
 
-/* ╔════════════════════════════════════════════════════╗
-   ║  🔀  PANEL TRANSITIONS (UI Navigation)             ║
-   ╚════════════════════════════════════════════════════╝ */
 async function changePanel(id) {
-	const panel = document.querySelector(`.${id}`);
-	const active = document.querySelector(`.active`);
+	try {
+		const panel = document.querySelector(`.${id}`);
+		const active = document.querySelector('.active');
 
-	if (active && active !== panel) {
-		const container = active.querySelector('.container');
-		container.style.opacity = 0;
-		container.style.transform = 'scale(0.95)';
-		await new Promise(resolve => setTimeout(resolve, 400));
+		if (active && active !== panel) {
+			const container = active.querySelector('.container');
+			container.style.opacity = 0;
+			container.style.transform = 'scale(0.95)';
+			await new Promise((resolve) => setTimeout(resolve, 400));
+			active.classList.remove('active');
+			container.style.visibility = 'hidden';
+		}
 
-		active.classList.remove('active');
-		container.style.visibility = 'hidden';
+		panel.classList.add('active');
+		const container = panel.querySelector('.container');
+		container.style.visibility = 'visible';
+		container.style.opacity = 1;
+		setTimeout(() => {
+			container.style.transform = 'scale(1)';
+		}, 100);
+	} catch (err) {
+		console.error('💥 changePanel error:', err);
 	}
-
-	const container = panel.querySelector('.container');
-	panel.classList.add('active');
-	container.style.visibility = 'visible';
-	container.style.opacity = 1;
-
-	setTimeout(() => container.style.transform = 'scale(1)', 100);
 }
 
-/* ╔════════════════════════════════════════════════════╗
-   ║  📂  SYSTEM PATHS                                  ║
-   ╚════════════════════════════════════════════════════╝ */
 async function appdata() {
-	return await ipcRenderer.invoke('appData');
+	try {
+		return await ipcRenderer.invoke('appData');
+	} catch (err) {
+		console.error('💥 appdata error:', err);
+		return null;
+	}
 }
-
-/* ╔════════════════════════════════════════════════════╗
-   ║  👤  ACCOUNT MANAGEMENT                            ║
-   ╚════════════════════════════════════════════════════╝ */
-const skinInstance = new skin2D();
 
 async function addAccount(data) {
-	let existing = document.getElementById(data.ID);
-	if (existing) return existing;
+	try {
+		if (!data || !data.ID) return null;
 
-	let skin = false;
-	if (data?.profile?.skins[0]?.base64) {
-		skin = await skinInstance.creatHeadTexture(data.profile.skins[0].base64);
+		let existingElement = document.getElementById(data.ID);
+		if (existingElement) return existingElement;
+
+		let skinUrl = false;
+		if (data?.profile?.skins?.[0]?.base64) {
+			skinUrl = await new Skin2D().creatHeadTexture(
+				data.profile.skins[0].base64
+			);
+		}
+
+		const div = document.createElement('div');
+		div.classList.add('account');
+		div.id = data.ID;
+		div.innerHTML = `
+      <div class="profile-image" ${
+				skinUrl ? `style="background-image: url(${skinUrl});"` : ''
+			}></div>
+      <div class="profile-infos">
+        <div class="profile-pseudo">${data.name}</div>
+        <div class="profile-uuid">${data.uuid}</div>
+      </div>
+      <div class="delete-profile" id="${data.ID}">
+        <div class="icon-account-delete delete-profile-icon"></div>
+      </div>
+    `;
+
+		return document.querySelector('.accounts-list')?.appendChild(div);
+	} catch (err) {
+		console.error('💥 addAccount error:', err);
+		return null;
 	}
-
-	const div = document.createElement('div');
-	div.classList.add('account');
-	div.id = data.ID;
-	div.innerHTML = `
-		<div class="profile-image" ${skin ? `style="background-image: url(${skin});"` : ''}></div>
-		<div class="profile-infos">
-			<div class="profile-pseudo">${data.name}</div>
-			<div class="profile-uuid">${data.uuid}</div>
-		</div>
-		<div class="delete-profile" id="${data.ID}">
-			<div class="icon-account-delete delete-profile-icon"></div>
-		</div>
-	`;
-	return document.querySelector('.accounts-list').appendChild(div);
 }
 
 async function accountSelect(data) {
-	const account = document.getElementById(data.ID);
-	const active = document.querySelector('.account-select');
+	try {
+		const account = document.getElementById(data.ID);
+		if (!account) return;
 
-	if (active) active.classList.toggle('account-select');
-	account.classList.add('account-select');
+		const activeAccount = document.querySelector('.account-select');
+		if (activeAccount) activeAccount.classList.toggle('account-select');
 
-	if (data?.profile?.skins[0]?.base64)
-		await headplayer(data.profile.skins[0].base64);
-}
-
-/* ╔════════════════════════════════════════════════════╗
-   ║  🧑‍🎮  PLAYER HEAD TEXTURE                        ║
-   ╚════════════════════════════════════════════════════╝ */
-async function headplayer(skinBase64) {
-	const skin = await skinInstance.creatHeadTexture(skinBase64);
-	document.querySelector('.player-head').style.backgroundImage = `url(${skin})`;
-}
-
-/* ╔════════════════════════════════════════════════════╗
-   ║  🌐  SERVER STATUS MONITORING                      ║
-   ╚════════════════════════════════════════════════════╝ */
-async function setStatus(opt) {
-	const nameEl = document.querySelector('.server-status-name');
-	const textEl = document.querySelector('.server-status-text');
-	const playerCountEl = document.querySelector('.status-player-count .player-count');
-
-	console.log('🌍 Initializing server status... (refresh every 15s)');
-
-	async function updateStatus() {
-		if (!opt) {
-			textEl.innerHTML = `Hors ligne - 0 ms`;
-			playerCountEl.innerHTML = '0';
-			return;
+		account.classList.add('account-select');
+		if (data?.profile?.skins?.[0]?.base64) {
+			await headplayer(data.profile.skins[0].base64);
 		}
-
-		const { ip, port, nameServer } = opt;
-		nameEl.innerHTML = nameServer;
-
-		const status = new Status(ip, port);
-		const server = await status.getStatus().catch(err => err);
-
-		if (!server.error) {
-			textEl.classList.remove('red');
-			textEl.classList.add('green');
-			document.querySelector('.status-player-count').classList.remove('red');
-			document.querySelector('.status-player-count').classList.add('green');
-			textEl.innerHTML = `En ligne - ${server.ms} ms`;
-			playerCountEl.innerHTML = server.playersConnect;
-		} else {
-			textEl.innerHTML = `Hors ligne - 0 ms`;
-			playerCountEl.innerHTML = '0';
-		}
+	} catch (err) {
+		console.error('💥 accountSelect error:', err);
 	}
-
-	await updateStatus();
-	setInterval(updateStatus, 15000);
 }
 
-/* ╔════════════════════════════════════════════════════╗
-   ║  🧮  UUID GENERATOR (Deterministic - Offline Mode) ║
-   ╚════════════════════════════════════════════════════╝ */
+async function headplayer(skinBase64) {
+	try {
+		const skinUrl = await new Skin2D().creatHeadTexture(skinBase64);
+		document.querySelector('.player-head').style.backgroundImage =
+			`url(${skinUrl})`;
+	} catch (err) {
+		console.error('💥 headplayer error:', err);
+	}
+}
+
+async function setStatus(opt) {
+	try {
+		const nameServerEl = document.querySelector('.server-status-name');
+		const statusServerEl = document.querySelector('.server-status-text');
+		const playersOnlineEl = document.querySelector(
+			'.status-player-count .player-count'
+		);
+
+		async function updateStatus() {
+			if (!opt) {
+				statusServerEl.innerHTML = 'Hors ligne - 0 ms';
+				playersOnlineEl.innerHTML = '0';
+				return;
+			}
+
+			const { ip, port, nameServer } = opt;
+			nameServerEl.innerHTML = nameServer;
+
+			try {
+				const status = new Status(ip, port);
+				const serverStatus = await status.getStatus();
+				if (!serverStatus.error) {
+					statusServerEl.classList.remove('red');
+					statusServerEl.classList.add('green');
+					document
+						.querySelector('.status-player-count')
+						.classList.remove('red');
+					document.querySelector('.status-player-count').classList.add('green');
+					statusServerEl.innerHTML = `En ligne - ${serverStatus.ms} ms`;
+					playersOnlineEl.innerHTML = serverStatus.playersConnect;
+				} else {
+					throw new Error('Server offline');
+				}
+			} catch {
+				statusServerEl.innerHTML = 'Hors ligne - 0 ms';
+				playersOnlineEl.innerHTML = '0';
+				statusServerEl.classList.remove('red');
+				statusServerEl.classList.add('green');
+				document.querySelector('.status-player-count').classList.remove('red');
+				document.querySelector('.status-player-count').classList.add('green');
+			}
+		}
+
+		await updateStatus();
+		setInterval(updateStatus, 15000);
+	} catch (err) {
+		console.error('💥 setStatus error:', err);
+	}
+}
+
 function generateDeterministicUUID(username) {
-	const crypto = require('crypto');
-	const data = Buffer.from('OfflinePlayer:' + username, 'utf8');
-	const hash = crypto.createHash('md5').update(data).digest();
+	try {
+		const data = Buffer.from('OfflinePlayer:' + username, 'utf8');
+		const hash = crypto.createHash('md5').update(data).digest();
 
-	// Apply UUID v3 format bits
-	hash[6] = (hash[6] & 0x0f) | 0x30;
-	hash[8] = (hash[8] & 0x3f) | 0x80;
+		hash[6] = (hash[6] & 0x0f) | 0x30; // Version 3
+		hash[8] = (hash[8] & 0x3f) | 0x80; // Variant
 
-	const hex = hash.toString('hex');
-	return [
-		hex.substring(0, 8),
-		hex.substring(8, 12),
-		hex.substring(12, 16),
-		hex.substring(16, 20),
-		hex.substring(20, 32),
-	].join('-');
+		const hex = hash.toString('hex');
+		return [
+			hex.substring(0, 8),
+			hex.substring(8, 12),
+			hex.substring(12, 16),
+			hex.substring(16, 20),
+			hex.substring(20, 32),
+		].join('-');
+	} catch (err) {
+		console.error('💥 generateDeterministicUUID error:', err);
+		return null;
+	}
 }
 
-/* ╔════════════════════════════════════════════════════╗
-   ║  📦  EXPORTS (UTILS REGISTRY)                      ║
-   ╚════════════════════════════════════════════════════╝ */
 export {
 	appdata,
 	changePanel,
@@ -225,7 +231,7 @@ export {
 	logger,
 	popup,
 	setBackground,
-	skin2D,
+	Skin2D,
 	addAccount,
 	accountSelect,
 	slider as Slider,

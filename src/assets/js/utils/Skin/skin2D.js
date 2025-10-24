@@ -1,66 +1,83 @@
-/**
- * 🧩 2D Skin Manager
- * ----------------------------------------------------------
- * Author  : Luuxis
- * License : CC-BY-NC 4.0 - https://creativecommons.org/licenses/by-nc/4.0
- * Purpose : Generate 2D player head textures from Minecraft skins
- * ----------------------------------------------------------
- */
-
-'use strict';
-
-const nodeFetch = require('node-fetch');
-
-/* ╔════════════════════════════════════════════════════╗
-   ║ 👤 SKIN2D CLASS                                      ║
-   ╚════════════════════════════════════════════════════╝ */
-export class skin2D {
-	/**
-	 * Generates a head texture from a Minecraft skin
-	 * @param {string} data - Base64 string or URL of the skin
-	 * @returns {Promise<string>} - Data URL of the head texture
-	 */
+class skin2D {
 	async creatHeadTexture(data) {
-		let image = await getData(data);
+		try {
+			const image = await getData(data);
 
-		return new Promise((resolve, reject) => {
-			image.addEventListener('load', () => {
-				// Create a small 8x8 canvas for the head
-				let cvs = document.createElement('canvas');
-				cvs.width = 8;
-				cvs.height = 8;
-				let ctx = cvs.getContext('2d');
+			await waitForImageLoad(image, 8000);
 
-				// Draw inner head
-				ctx.drawImage(image, 8, 8, 8, 8, 0, 0, 8, 8);
+			const canvas = document.createElement('canvas');
+			canvas.width = 8;
+			canvas.height = 8;
+			const ctx = canvas.getContext('2d');
 
-				// Draw outer overlay
-				ctx.drawImage(image, 40, 8, 8, 8, 0, 0, 8, 8);
+			ctx.drawImage(image, 8, 8, 8, 8, 0, 0, 8, 8);
+			ctx.drawImage(image, 40, 8, 8, 8, 0, 0, 8, 8);
 
-				resolve(cvs.toDataURL());
-			});
-		});
+			return canvas.toDataURL('image/png');
+		} catch (err) {
+			console.error('💥 skin2D.creatHeadTexture error:', err);
+			throw err;
+		}
 	}
 }
 
-/* ╔════════════════════════════════════════════════════╗
-   ║ 🌐 UTILITY FUNCTION                                  ║
-   ╚════════════════════════════════════════════════════╝ */
-
-/**
- * Converts a URL or Base64 string into an Image element
- * @param {string} data - URL or Base64 skin
- * @returns {Promise<Image>} - HTMLImageElement
- */
 async function getData(data) {
-	if (data.startsWith('http')) {
-		// Fetch remote image as buffer and convert to Base64
-		let response = await nodeFetch(data);
-		let buffer = await response.buffer();
+	if (!data || typeof data !== 'string') {
+		throw new Error('⚠️ Donnée image invalide pour skin2D.');
+	}
+
+	if (data.startsWith('http://') || data.startsWith('https://')) {
+		const controller = new AbortController();
+		const timeout = setTimeout(() => controller.abort(), 8000);
+
+		let res;
+		try {
+			res = await nodeFetch(data, { signal: controller.signal });
+		} catch (err) {
+			clearTimeout(timeout);
+			throw new Error(`🌐 Échec du téléchargement du skin : ${err.message}`);
+		}
+		clearTimeout(timeout);
+
+		if (!res.ok) {
+			throw new Error(`❌ HTTP Error ${res.status} ${res.statusText}`);
+		}
+
+		const buffer = await res.buffer();
 		data = `data:image/png;base64,${buffer.toString('base64')}`;
 	}
 
-	let img = new Image();
+	const img = new Image();
 	img.src = data;
 	return img;
 }
+
+function waitForImageLoad(img, ms = 8000) {
+	return new Promise((resolve, reject) => {
+		let settled = false;
+		const timeoutId = setTimeout(() => {
+			if (!settled) {
+				settled = true;
+				reject(new Error('⏰ Chargement de l’image dépassé.'));
+			}
+		}, ms);
+
+		img.onload = () => {
+			if (!settled) {
+				settled = true;
+				clearTimeout(timeoutId);
+				resolve();
+			}
+		};
+
+		img.onerror = () => {
+			if (!settled) {
+				settled = true;
+				clearTimeout(timeoutId);
+				reject(new Error('💔 Échec du chargement de l’image.'));
+			}
+		};
+	});
+}
+
+export default skin2D;

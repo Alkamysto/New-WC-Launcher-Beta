@@ -491,12 +491,12 @@
 }
 
 .instance-select {
+	background: var(--gradient-color);
 	display: flex;
 	align-items: center;
 	position: absolute;
-	right: -50px;
-	top: -2px;
-	color: var(--gradient-color);
+	right: -40px;
+	top: 15px;
 	font-size: 1rem;
 	box-shadow:
 		0 -4px #c7576f9f inset,
@@ -504,8 +504,8 @@
 		-4px 0 #c453edc2 inset,
 		4px 0 #a87e43e1 inset;
 	text-align: center;
-	border-radius: 3rem;
-	padding: 0.8rem;
+	border-radius: 15px;
+	padding: 0.5rem;
 	cursor: pointer;
 }
 
@@ -601,7 +601,7 @@
 	display: none;
 	width: 100%;
 	height: 100%;
-	background: #000000b3;
+	background: var(--background-transparent);
 	z-index: 10;
 	flex-direction: column;
 	align-items: center;
@@ -629,7 +629,7 @@
 	background: var(--shadow);
 	height: 30px;
 	width: 30px;
-	border-radius: 3rem;
+	border-radius: 10px;
 	align-items: center;
 	justify-content: center;
 }
@@ -640,20 +640,21 @@
 }
 
 .instance-elements {
-	background: var(--background-element);
+	background: var(--background-transparent);
 	text-align: center;
 	border-radius: 3rem;
-	padding: 0.8rem;
 	margin: 0.5rem 0;
 	font-size: 1.5rem;
 	cursor: pointer;
 }
 
 .instance-elements:hover {
-	background: var(--gradient-color);
+	background: var(--element-color);
+	box-shadow: 0px 0px 81px 5px var(--element-color);
 }
 
 .active-instance {
+	padding: 0.8rem;
 	background: var(--gradient-color);
 	box-shadow:
 		0 -4px #c7576f9f inset,
