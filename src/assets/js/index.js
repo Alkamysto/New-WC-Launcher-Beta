@@ -1,6 +1,11 @@
 /**
- * @author Luuxis
- * @license CC-BY-NC 4.0 - https://creativecommons.org/licenses/by-nc/4.0
+ * 🔄 Launcher Auto-Updater
+ * ----------------------------------------------------------
+ * Author  : Luuxis
+ * License : CC-BY-NC 4.0 - https://creativecommons.org/licenses/by-nc/4.0
+ * Purpose : Handles launcher startup animation, update checks,
+ *           download handling, and maintenance verification.
+ * ----------------------------------------------------------
  */
 
 const { ipcRenderer, shell } = require('electron');
@@ -9,6 +14,9 @@ const os = require('os');
 import { config, database } from './utils.js';
 const nodeFetch = require('node-fetch');
 
+// ╔════════════════════════════════════════════════════╗
+// ║ 💠 SPLASH SCREEN CLASS                            ║
+// ╚════════════════════════════════════════════════════╝
 class Splash {
 	constructor() {
 		this.splash = document.querySelector('.splash');
@@ -17,29 +25,40 @@ class Splash {
 		this.message = document.querySelector('.message');
 		this.progress = document.querySelector('.progress');
 		this.version = document.querySelector('.version');
+
 		document.addEventListener('DOMContentLoaded', async () => {
-			let databaseLauncher = new database();
-			let configClient = await databaseLauncher.readData('configClient');
-			let theme = configClient?.launcher_config?.theme || 'auto';
-			let isDarkTheme = await ipcRenderer
-				.invoke('is-dark-theme', theme)
-				.then((res) => res);
+			const databaseLauncher = new database();
+			const configClient = await databaseLauncher.readData('configClient');
+			const theme = configClient?.launcher_config?.theme || 'auto';
+
+			// Active le thème selon la préférence utilisateur ou le système
+			const isDarkTheme = await ipcRenderer.invoke('is-dark-theme', theme);
 			document.body.className = isDarkTheme ? 'dark global' : 'light global';
-			if (process.platform === 'win32')
-				ipcRenderer.send('update-window-progress-load');
+
+			// Barre de progression sur Windows
+			if (process.platform === 'win32') ipcRenderer.send('update-window-progress-load');
+
 			await this.startAnimation();
 		});
 	}
 
+	/* ╔════════════════════════════════════════════════════╗
+	   ║  ✨ STARTUP ANIMATION SEQUENCE                      ║
+	   ╚════════════════════════════════════════════════════╝ */
 	async startAnimation() {
-		let splashes = [
-			{ message: 'Dommage...', author: 'Walou' },
+		const splashes = [
+			{ message: 'DOMMAGE !', author: 'Walou' },
 			{ message: 'Pierre Edouard ton goûter', author: 'Walou' },
 			{ message: "Quelqu'un à vu espace ?", author: 'Walou' },
+			{ message: 'Tah Selles-sur-Cher...', author: 'Saluzzo' },
+			{ message: 'Il reste du Bougnoulai ?', author: 'Saluzzo' },
+			{ message: '', author: '' },
 		];
-		let splash = splashes[Math.floor(Math.random() * splashes.length)];
+
+		const splash = splashes[Math.floor(Math.random() * splashes.length)];
 		this.splashMessage.textContent = splash.message;
-		this.splashAuthor.children[0].textContent = '@' + splash.author;
+		this.splashAuthor.children[0].textContent = splash.author ? '@' + splash.author : '';
+
 		await sleep(100);
 		document.querySelector('#splash').style.display = 'block';
 		await sleep(500);
@@ -50,32 +69,40 @@ class Splash {
 		this.splashAuthor.classList.add('opacity');
 		this.message.classList.add('opacity');
 		this.version.classList.add('opacity');
+
 		await sleep(1000);
 		await this.checkUpdate();
 	}
 
+	/* ╔════════════════════════════════════════════════════╗
+	   ║  🔎 UPDATE CHECK HANDLER                           ║
+	   ╚════════════════════════════════════════════════════╝ */
 	async checkUpdate() {
 		this.setStatus(`Recherche de mise à jour...`);
 
-		ipcRenderer
-			.invoke('update-app')
-			.then()
-			.catch((err) => {
-				return this.shutdown(
-					`Erreur lors de la recherche de mise à jour : <br>${err.message}`
-				);
-			});
+		try {
+			await ipcRenderer.invoke('update-app');
+		} catch (err) {
+			return this.shutdown(`Erreur lors de la recherche de mise à jour : <br>${err.message}`);
+		}
 
-		ipcRenderer.on('updateAvailable', () => {
+		ipcRenderer.once('updateAvailable', async () => {
 			this.setStatus(`Mise à jour disponible !`);
 			if (os.platform() === 'win32') {
 				this.toggleProgress();
 				ipcRenderer.send('start-update');
-			} else return this.dowloadUpdate();
+			} else {
+				await this.downloadUpdate();
+			}
+		});
+
+		ipcRenderer.once('update-not-available', () => {
+			console.log('Aucune mise à jour disponible.');
+			this.maintenanceCheck();
 		});
 
 		ipcRenderer.on('error', (event, err) => {
-			if (err) return this.shutdown(`${err.message}`);
+			if (err) this.shutdown(`${err.message}`);
 		});
 
 		ipcRenderer.on('download-progress', (event, progress) => {
@@ -85,93 +112,87 @@ class Splash {
 			});
 			this.setProgress(progress.transferred, progress.total);
 		});
-
-		ipcRenderer.on('update-not-available', () => {
-			console.error('Mise à jour non disponible');
-			this.maintenanceCheck();
-		});
 	}
 
-	getLatestReleaseForOS(os, preferredFormat, asset) {
-		return asset
-			.filter((asset) => {
-				const name = asset.name.toLowerCase();
-				const isOSMatch = name.includes(os);
-				const isFormatMatch = name.endsWith(preferredFormat);
-				return isOSMatch && isFormatMatch;
-			})
+	/* ╔════════════════════════════════════════════════════╗
+	   ║  🧩 RELEASE SELECTION UTIL                         ║
+	   ╚════════════════════════════════════════════════════╝ */
+	getLatestReleaseForOS(osName, preferredFormat, assets) {
+		return assets
+			.filter(a => a.name.toLowerCase().includes(osName) && a.name.endsWith(preferredFormat))
 			.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
 	}
 
-	async dowloadUpdate() {
-		const repoURL = pkg.repository.url
-			.replace('git+', '')
-			.replace('.git', '')
-			.replace('https://github.com/', '')
-			.split('/');
-		const githubAPI = await nodeFetch('https://api.github.com')
-			.then((res) => res.json())
-			.catch((err) => err);
+	/* ╔════════════════════════════════════════════════════╗
+	   ║  📥 MANUAL UPDATE (macOS / Linux)                  ║
+	   ╚════════════════════════════════════════════════════╝ */
+	async downloadUpdate() {
+		try {
+			const repoPath = pkg.repository.url.replace('git+', '').replace('.git', '').replace('https://github.com/', '');
+			const [owner, repo] = repoPath.split('/');
 
-		const githubAPIRepoURL = githubAPI.repository_url
-			.replace('{owner}', repoURL[0])
-			.replace('{repo}', repoURL[1]);
-		const githubAPIRepo = await nodeFetch(githubAPIRepoURL)
-			.then((res) => res.json())
-			.catch((err) => err);
+			const releases = await nodeFetch(`https://api.github.com/repos/${owner}/${repo}/releases`)
+				.then(res => res.json());
 
-		const releases_url = await nodeFetch(
-			githubAPIRepo.releases_url.replace('{/id}', '')
-		)
-			.then((res) => res.json())
-			.catch((err) => err);
-		const latestRelease = releases_url[0].assets;
-		let latest;
+			const latestRelease = releases[0].assets;
+			let latestAsset;
 
-		if (os.platform() === 'darwin')
-			latest = this.getLatestReleaseForOS('mac', '.dmg', latestRelease);
-		else if (os === 'linux')
-			latest = this.getLatestReleaseForOS('linux', '.appimage', latestRelease);
+			if (os.platform() === 'darwin') latestAsset = this.getLatestReleaseForOS('mac', '.dmg', latestRelease);
+			if (os.platform() === 'linux') latestAsset = this.getLatestReleaseForOS('linux', '.appimage', latestRelease);
 
-		this.setStatus(
-			`Mise à jour disponible !<br><div class="download-update">Télécharger</div>`
-		);
-		document.querySelector('.download-update').addEventListener('click', () => {
-			shell.openExternal(latest.browser_download_url);
-			return this.shutdown('Téléchargement en cours...');
-		});
-	}
+			if (!latestAsset) return this.shutdown('Impossible de récupérer la mise à jour.');
 
-	async maintenanceCheck() {
-		config
-			.GetConfig()
-			.then((res) => {
-				if (res.maintenance) return this.shutdown(res.maintenance_message);
-				this.startLauncher();
-			})
-			.catch((e) => {
-				console.error(e);
-				return this.shutdown(
-					'Aucune connexion internet détectée,<br>veuillez réessayer ultérieurement.'
-				);
+			this.setStatus(`Mise à jour disponible !<br><div class="download-update">Télécharger</div>`);
+
+			document.querySelector('.download-update').addEventListener('click', () => {
+				shell.openExternal(latestAsset.browser_download_url);
+				this.shutdown('Téléchargement en cours...');
 			});
+		} catch (err) {
+			this.shutdown(`Erreur lors de la récupération de la mise à jour : <br>${err.message}`);
+		}
 	}
 
+	/* ╔════════════════════════════════════════════════════╗
+	   ║  🧱 MAINTENANCE CHECK                              ║
+	   ╚════════════════════════════════════════════════════╝ */
+	async maintenanceCheck() {
+		try {
+			const res = await config.GetConfig();
+			if (res.maintenance) return this.shutdown(res.maintenance_message);
+			this.startLauncher();
+		} catch {
+			this.shutdown('Aucune connexion internet détectée,<br>veuillez réessayer ultérieurement.');
+		}
+	}
+
+	/* ╔════════════════════════════════════════════════════╗
+	   ║  🚀 LAUNCHER STARTUP                               ║
+	   ╚════════════════════════════════════════════════════╝ */
 	startLauncher() {
 		this.setStatus(`Démarrage du launcher`);
 		ipcRenderer.send('main-window-open');
 		ipcRenderer.send('update-window-close');
 	}
 
+	/* ╔════════════════════════════════════════════════════╗
+	   ║  💀 SHUTDOWN SEQUENCE                              ║
+	   ╚════════════════════════════════════════════════════╝ */
 	shutdown(text) {
 		this.setStatus(`${text}<br>Arrêt dans 5s`);
 		let i = 4;
-		setInterval(() => {
+		const interval = setInterval(() => {
 			this.setStatus(`${text}<br>Arrêt dans ${i--}s`);
-			if (i < 0) ipcRenderer.send('update-window-close');
+			if (i < 0) {
+				clearInterval(interval);
+				ipcRenderer.send('update-window-close');
+			}
 		}, 1000);
 	}
 
+	/* ╔════════════════════════════════════════════════════╗
+	   ║  📊 STATUS & PROGRESS HELPERS                      ║
+	   ╚════════════════════════════════════════════════════╝ */
 	setStatus(text) {
 		this.message.innerHTML = text;
 	}
@@ -186,20 +207,32 @@ class Splash {
 	}
 }
 
+// ╔════════════════════════════════════════════════════╗
+// ║ 🌐 WINDOW EVENT HANDLERS                           ║
+// ╚════════════════════════════════════════════════════╝
 window.addEventListener('DOMContentLoaded', () => {
 	ipcRenderer.on('app-version', (event, version) => {
 		document.querySelector('.version').innerText = `Version : ${version}`;
 	});
 });
 
+/* ╔════════════════════════════════════════════════════╗
+   ║ 💤 UTILITY : ASYNC SLEEP                           ║
+   ╚════════════════════════════════════════════════════╝ */
 function sleep(ms) {
-	return new Promise((r) => setTimeout(r, ms));
+	return new Promise(r => setTimeout(r, ms));
 }
 
-document.addEventListener('keydown', (e) => {
-	if ((e.ctrlKey && e.shiftKey && e.code === 73) || e.code === 123) {
+/* ╔════════════════════════════════════════════════════╗
+   ║ 🧰 DEV TOOLS SHORTCUT                              ║
+   ╚════════════════════════════════════════════════════╝ */
+document.addEventListener('keydown', e => {
+	if ((e.ctrlKey && e.shiftKey && e.code === 'KeyI') || e.code === 'F12') {
 		ipcRenderer.send('update-window-dev-tools');
 	}
 });
 
+// ╔════════════════════════════════════════════════════╗
+// ║ 🧠 EXECUTION ENTRY POINT                           ║
+// ╚════════════════════════════════════════════════════╝
 new Splash();

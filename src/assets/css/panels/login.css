@@ -33,19 +33,19 @@
 	font-size: 1.5rem;
 	padding: 0.7rem 1.5rem;
 	border-radius: 2rem;
+	box-shadow:
+		0 -4px #c7576f80 inset,
+		0 4px #a87e43fc inset,
+		-4px 0 #c7576f80 inset,
+		4px 0 #c453edfc inset;
 	background: var(--background-login-tab);
 	color: var(--dark);
-	text-shadow:
-		1px 1px 0px var(--light),
-		-1px -1px 0px var(--light),
-		1px -1px 0px var(--light),
-		-1px 1px 0px var(--light);
 }
 
 .login-tabs {
 	position: absolute;
 	padding: 15px;
-	background: var(--background-transparent);
+	background: var(--background-login-tab);
 	border: 1px solid var(--element-color);
 	box-shadow: 0px 0px 81px 5px var(--element-color);
 	border-radius: 30px;
@@ -62,6 +62,10 @@
 
 .login-text {
 	font-size: 1rem;
+}
+
+.login-text-tiny {
+	font-size: 0.9rem;
 }
 
 .connect,

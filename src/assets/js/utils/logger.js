@@ -1,40 +1,70 @@
 /**
- * @author Luuxis
- * @license CC-BY-NC 4.0 - https://creativecommons.org/licenses/by-nc/4.0
+ * 📝 Launcher Logger
+ * ----------------------------------------------------------
+ * Author  : Luuxis
+ * License : CC-BY-NC 4.0 - https://creativecommons.org/licenses/by-nc/4.0
+ * Purpose : High-performance colored logger for console output
+ *           in the launcher with optional context and grouping.
+ * ----------------------------------------------------------
  */
 
-let console_log = console.log;
-let console_info = console.info;
-let console_warn = console.warn;
-let console_debug = console.debug;
-let console_error = console.error;
+'use strict';
 
-class logger {
-	constructor(name, color) {
-		this.Logger(name, color);
-	}
+/* ╔════════════════════════════════════════════════════╗
+   ║ 🔧 STORE ORIGINAL CONSOLE METHODS                   ║
+   ╚════════════════════════════════════════════════════╝ */
+const _log = console.log.bind(console);
+const _info = console.info.bind(console);
+const _warn = console.warn.bind(console);
+const _debug = console.debug.bind(console);
+const _error = console.error.bind(console);
 
-	async Logger(name, color) {
-		console.log = (value) => {
-			console_log.call(console, `%c[${name}]:`, `color: ${color};`, value);
-		};
+/* ╔════════════════════════════════════════════════════╗
+   ║ 🖋️ LOGGER CLASS                                     ║
+   ╚════════════════════════════════════════════════════╝ */
+class Logger {
+    /**
+     * 🛠️ Constructor
+     * @param {string} name  - Name prefix for all log messages
+     * @param {string} color - Color for the console prefix
+     */
+    constructor(name = 'Launcher', color = '#7289da') {
+        this.name = name;
+        this.color = color;
 
-		console.info = (value) => {
-			console_info.call(console, `%c[${name}]:`, `color: ${color};`, value);
-		};
+        this.overrideConsole();
+    }
 
-		console.warn = (value) => {
-			console_warn.call(console, `%c[${name}]:`, `color: ${color};`, value);
-		};
+    /* ------------------------------------------------------
+       🎨 OVERRIDE CONSOLE METHODS
+       Adds color and optional grouping to log messages
+    ------------------------------------------------------ */
+    overrideConsole() {
+        const prefix = `%c[${this.name}]:`;
+        const style = `color: ${this.color}; font-weight: bold;`;
 
-		console.debug = (value) => {
-			console_debug.call(console, `%c[${name}]:`, `color: ${color};`, value);
-		};
+        console.log = (...args) => _log(prefix, style, ...args);
+        console.info = (...args) => _info(prefix, style, ...args);
+        console.warn = (...args) => _warn(prefix, style, ...args);
+        console.debug = (...args) => _debug(prefix, style, ...args);
+        console.error = (...args) => _error(prefix, style, ...args);
+    }
 
-		console.error = (value) => {
-			console_error.call(console, `%c[${name}]:`, `color: ${color};`, value);
-		};
-	}
+    /* ------------------------------------------------------
+       🔹 GROUP LOGS
+       Allows grouping multiple logs under a collapsible section
+    ------------------------------------------------------ */
+    group(label, collapsed = true) {
+        if (collapsed) console.groupCollapsed(label);
+        else console.group(label);
+    }
+
+    endGroup() {
+        console.groupEnd();
+    }
 }
 
-export default logger;
+/* ╔════════════════════════════════════════════════════╗
+   ║ 🚀 EXPORT LOGGER                                     ║
+   ╚════════════════════════════════════════════════════╝ */
+export default Logger;

@@ -1,5 +1,12 @@
 .global {
-	--element-color: #ff9900bb;
+	--gradient-color: linear-gradient(
+		51deg,
+		#a87e439c 11%,
+		#c7576f9c 34%,
+		#c7576f9c 66%,
+		#c453ed9c 92%
+	);
+	--element-color: #c7576f;
 	--transition: all 0.5s cubic-bezier(1, 0.46, 0, 1.29);
 	--dark-color: #292929;
 	--light-color: #f5f5f5;
@@ -31,9 +38,9 @@
 
 .light {
 	--color: #151515;
-	--background: #f5f5f5;
-	--background-element: #c2c2c2;
-	--background-transparent: #cccccccc;
+	--background: #f5f5f5b2;
+	--background-element: #c2c2c200;
+	--background-transparent: #ccccccd2;
 	--shadow: #d0d0d0b3;
 	--svg-color: brightness(0) saturate(100%) invert(0%) sepia(5%) saturate(1719%)
 		hue-rotate(357deg) brightness(94%) contrast(84%);

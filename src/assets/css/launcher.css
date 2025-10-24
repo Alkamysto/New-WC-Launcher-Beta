@@ -162,19 +162,29 @@ input::-webkit-inner-spin-button {
 
 .popup-tab {
 	width: 50%;
-	background: var(--background-light);
+	background: var(--background-transparent);
+	transition: transform 0.5s ease-in;
+	box-shadow:
+		0 -4px #c7576f9f inset,
+		0 4px #c7576f9f inset,
+		-4px 0 #a87e43e1 inset,
+		4px 0 #c453edc2 inset;
+	border-radius: 3rem;
 	padding: 15px;
-	border-radius: 6px;
 	z-index: 10;
 }
 
 .popup-title {
 	text-align: center;
-	background: var(--background-transparent);
+	background: var(--gradient-color);
+	box-shadow:
+		0 -4px #c7576f9f inset,
+		0 4px #c7576f9f inset,
+		-4px 0 #a87e43e1 inset,
+		4px 0 #c453edc2 inset;
 	padding: 10px;
 	font-size: 2rem;
-	border-radius: 5px;
-	border: solid 3px var(--background-element);
+	border-radius: 3rem;
 	margin-bottom: 1rem;
 }
 
@@ -187,7 +197,7 @@ input::-webkit-inner-spin-button {
 .popup-button {
 	background: none;
 	color: var(--color);
-	border: solid 4px var(--element-color);
+	border: solid 4px var(--gradient-color);
 	border-radius: 10px;
 	padding: 0.3rem 4rem;
 	font-size: inherit;

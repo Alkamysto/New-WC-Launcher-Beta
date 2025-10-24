@@ -1,77 +1,121 @@
 /**
- * @author Luuxis
- * @license CC-BY-NC 4.0 - https://creativecommons.org/licenses/by-nc/4.0
+ * 🗄️ Launcher Database Manager
+ * ----------------------------------------------------------
+ * Author  : Luuxis
+ * License : CC-BY-NC 4.0 - https://creativecommons.org/licenses/by-nc/4.0
+ * Purpose : Handles all CRUD operations using NodeBDD
+ *           with improved stability and performance
+ * ----------------------------------------------------------
  */
 
+'use strict';
+
+/* ╔════════════════════════════════════════════════════╗
+   ║ 🔧 IMPORTS & INITIALIZATION                          ║
+   ╚════════════════════════════════════════════════════╝ */
 const { NodeBDD, DataType } = require('node-bdd');
-const nodedatabase = new NodeBDD();
 const { ipcRenderer } = require('electron');
 
-let dev = process.env.NODE_ENV === 'dev';
+const nodedatabase = new NodeBDD();
+const dev = process.env.NODE_ENV === 'dev';
 
-class database {
-	async creatDatabase(tableName, tableConfig) {
-		return await nodedatabase.intilize({
-			databaseName: 'Databases',
-			fileType: dev ? 'sqlite' : 'db',
-			tableName: tableName,
-			path: `${await ipcRenderer.invoke('path-user-data')}${dev ? '../..' : '/databases'}`,
-			tableColumns: tableConfig,
-		});
-	}
+/* ╔════════════════════════════════════════════════════╗
+   ║ 🛠️ DATABASE CLASS                                     ║
+   ╚════════════════════════════════════════════════════╝ */
+class Database {
 
-	async getDatabase(tableName) {
-		return await this.creatDatabase(tableName, {
-			json_data: DataType.TEXT.TEXT,
-		});
-	}
+    /* ------------------------------------------------------
+       🆕 INITIALIZE OR CREATE DATABASE TABLE
+       tableName   : name of the table
+       tableConfig : columns definition
+    ------------------------------------------------------ */
+    async createDatabase(tableName, tableConfig) {
+        const dbPath = await ipcRenderer.invoke('path-user-data');
+        const path = dev ? `${dbPath}/../..` : `${dbPath}/databases`;
 
-	async createData(tableName, data) {
-		let table = await this.getDatabase(tableName);
-		data = await nodedatabase.createData(table, {
-			json_data: JSON.stringify(data),
-		});
-		let id = data.id;
-		data = JSON.parse(data.json_data);
-		data.ID = id;
-		return data;
-	}
+        return nodedatabase.intilize({
+            databaseName: 'Databases',
+            fileType: dev ? 'sqlite' : 'db',
+            tableName,
+            path,
+            tableColumns: tableConfig,
+        });
+    }
 
-	async readData(tableName, key = 1) {
-		let table = await this.getDatabase(tableName);
-		let data = await nodedatabase.getDataById(table, key);
-		if (data) {
-			let id = data.id;
-			data = JSON.parse(data.json_data);
-			data.ID = id;
-		}
-		return data ? data : undefined;
-	}
+    /* ------------------------------------------------------
+       📂 GET DATABASE TABLE
+       Auto-creates table if it doesn't exist
+    ------------------------------------------------------ */
+    async getDatabase(tableName) {
+        return this.createDatabase(tableName, {
+            json_data: DataType.TEXT.TEXT,
+        });
+    }
 
-	async readAllData(tableName) {
-		let table = await this.getDatabase(tableName);
-		let data = await nodedatabase.getAllData(table);
-		return data.map((info) => {
-			let id = info.id;
-			info = JSON.parse(info.json_data);
-			info.ID = id;
-			return info;
-		});
-	}
+    /* ------------------------------------------------------
+       ➕ CREATE DATA
+       Inserts data into the table and returns the entry with ID
+    ------------------------------------------------------ */
+    async createData(tableName, data) {
+        const table = await this.getDatabase(tableName);
+        const entry = await nodedatabase.createData(table, {
+            json_data: JSON.stringify(data),
+        });
+        const parsedData = JSON.parse(entry.json_data);
+        parsedData.ID = entry.id;
+        return parsedData;
+    }
 
-	async updateData(tableName, data, key = 1) {
-		let table = await this.getDatabase(tableName);
-		await nodedatabase.updateData(
-			table,
-			{ json_data: JSON.stringify(data) },
-			key
-		);
-	}
+    /* ------------------------------------------------------
+       🔍 READ DATA BY KEY
+       Returns a single entry by ID
+    ------------------------------------------------------ */
+    async readData(tableName, key = 1) {
+        const table = await this.getDatabase(tableName);
+        const entry = await nodedatabase.getDataById(table, key);
 
-	async deleteData(tableName, key = 1) {
-		let table = await this.getDatabase(tableName);
-		await nodedatabase.deleteData(table, key);
-	}
+        if (!entry) return undefined;
+
+        const data = JSON.parse(entry.json_data);
+        data.ID = entry.id;
+        return data;
+    }
+
+    /* ------------------------------------------------------
+       📖 READ ALL DATA
+       Returns all entries in the table
+    ------------------------------------------------------ */
+    async readAllData(tableName) {
+        const table = await this.getDatabase(tableName);
+        const allData = await nodedatabase.getAllData(table);
+
+        return allData.map((entry) => {
+            const data = JSON.parse(entry.json_data);
+            data.ID = entry.id;
+            return data;
+        });
+    }
+
+    /* ------------------------------------------------------
+       ✏️ UPDATE DATA
+       Updates an entry by key (default: 1)
+    ------------------------------------------------------ */
+    async updateData(tableName, data, key = 1) {
+        const table = await this.getDatabase(tableName);
+        await nodedatabase.updateData(table, { json_data: JSON.stringify(data) }, key);
+    }
+
+    /* ------------------------------------------------------
+       🗑️ DELETE DATA
+       Deletes an entry by key (default: 1)
+    ------------------------------------------------------ */
+    async deleteData(tableName, key = 1) {
+        const table = await this.getDatabase(tableName);
+        await nodedatabase.deleteData(table, key);
+    }
 }
 
-export default database;
+/* ╔════════════════════════════════════════════════════╗
+   ║ 🚀 EXPORT DATABASE CLASS                             ║
+   ╚════════════════════════════════════════════════════╝ */
+export default Database;

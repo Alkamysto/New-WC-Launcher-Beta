@@ -1,104 +1,110 @@
 /**
- * @author Luuxis
- * @license CC-BY-NC 4.0 - https://creativecommons.org/licenses/by-nc/4.0
+ * ⚙️ Launcher Configuration Manager
+ * ----------------------------------------------------------
+ * Author  : Luuxis
+ * License : CC-BY-NC 4.0 - https://creativecommons.org/licenses/by-nc/4.0
+ * Purpose : Fetches launcher config, instances, and news
+ *           with improved stability and performance
+ * ----------------------------------------------------------
  */
 
+'use strict';
+
+/* ╔════════════════════════════════════════════════════╗
+   ║ 🔧 IMPORTS & INITIALIZATION                          ║
+   ╚════════════════════════════════════════════════════╝ */
 const pkg = require('../package.json');
 const convert = require('xml-js');
-let url = pkg.user ? `${pkg.url}/${pkg.user}` : pkg.url;
 
-let config = `${url}/launcher/config-launcher/config.json`;
-let news = `${url}/launcher/news-launcher/news.json`;
+const baseURL = pkg.user ? `${pkg.url}/${pkg.user}` : pkg.url;
+const configURL = `${baseURL}/launcher/config-launcher/config.json`;
+const newsURL = `${baseURL}/launcher/news-launcher/news.json`;
 
+/* ╔════════════════════════════════════════════════════╗
+   ║ 🛠️ CONFIG CLASS                                      ║
+   ╚════════════════════════════════════════════════════╝ */
 class Config {
-	GetConfig() {
-		return new Promise((resolve, reject) => {
-			fetch(config)
-				.then(async (config) => {
-					if (config.status === 200) return resolve(config.json());
-					else
-						return reject({
-							error: {
-								code: config.statusText,
-								message: 'Server not accessible',
-							},
-						});
-				})
-				.catch((error) => {
-					return reject({ error });
-				});
-		});
-	}
 
-	async getInstanceList() {
-		let urlInstance = `${url}/files`;
-		let instances = await fetch(urlInstance)
-			.then((res) => res.json())
-			.catch((err) => err);
-		let instancesList = [];
-		instances = Object.entries(instances);
+    /* ------------------------------------------------------
+       📄 GET LAUNCHER CONFIG
+       Returns JSON config or error if server is unreachable
+    ------------------------------------------------------ */
+    async GetConfig() {
+        try {
+            const res = await fetch(configURL);
+            if (!res.ok) {
+                throw { code: res.statusText, message: 'Server not accessible' };
+            }
+            return await res.json();
+        } catch (error) {
+            return { error };
+        }
+    }
 
-		for (let [name, data] of instances) {
-			let instance = data;
-			instance.name = name;
-			instancesList.push(instance);
-		}
-		return instancesList;
-	}
+    /* ------------------------------------------------------
+       🗂️ GET INSTANCES LIST
+       Fetches available instances from server
+    ------------------------------------------------------ */
+    async getInstanceList() {
+        try {
+            const res = await fetch(`${baseURL}/files`);
+            if (!res.ok) throw new Error('Unable to fetch instances');
 
-	async getNews() {
-		let config = (await this.GetConfig()) || {};
+            const instances = await res.json();
+            return Object.entries(instances).map(([name, data]) => {
+                return { ...data, name };
+            });
+        } catch (error) {
+            console.error('[Config] Error fetching instances:', error);
+            return [];
+        }
+    }
 
-		if (config.rss) {
-			return new Promise((resolve, reject) => {
-				fetch(config.rss)
-					.then(async (config) => {
-						if (config.status === 200) {
-							let news = [];
-							let response = await config.text();
-							response = JSON.parse(
-								convert.xml2json(response, { compact: true })
-							)?.rss?.channel?.item;
+    /* ------------------------------------------------------
+       📰 GET NEWS
+       Fetches RSS news if available, otherwise JSON news
+    ------------------------------------------------------ */
+    async getNews() {
+        const configData = (await this.GetConfig()) || {};
 
-							if (!Array.isArray(response)) response = [response];
-							for (let item of response) {
-								news.push({
-									title: item.title._text,
-									content: item['content:encoded']._text,
-									author: item['dc:creator']._text,
-									publish_date: item.pubDate._text,
-								});
-							}
-							return resolve(news);
-						} else
-							return reject({
-								error: {
-									code: config.statusText,
-									message: 'Server not accessible',
-								},
-							});
-					})
-					.catch((error) => reject({ error }));
-			});
-		} else {
-			return new Promise((resolve, reject) => {
-				fetch(news)
-					.then(async (config) => {
-						if (config.status === 200) return resolve(config.json());
-						else
-							return reject({
-								error: {
-									code: config.statusText,
-									message: 'Server not accessible',
-								},
-							});
-					})
-					.catch((error) => {
-						return reject({ error });
-					});
-			});
-		}
-	}
+        // If RSS feed defined
+        if (configData.rss) {
+            try {
+                const res = await fetch(configData.rss);
+                if (!res.ok) throw new Error('RSS feed not accessible');
+
+                let xmlText = await res.text();
+                let rssData = convert.xml2json(xmlText, { compact: true });
+                let items = JSON.parse(rssData)?.rss?.channel?.item || [];
+
+                if (!Array.isArray(items)) items = [items];
+
+                return items.map((item) => ({
+                    title: item.title?._text || '',
+                    content: item['content:encoded']?._text || '',
+                    author: item['dc:creator']?._text || '',
+                    publish_date: item.pubDate?._text || '',
+                }));
+            } catch (error) {
+                console.error('[Config] Error fetching RSS news:', error);
+                return [];
+            }
+        }
+
+        // Fallback to JSON news
+        try {
+            const res = await fetch(newsURL);
+            if (!res.ok) throw new Error('JSON news not accessible');
+
+            return await res.json();
+        } catch (error) {
+            console.error('[Config] Error fetching JSON news:', error);
+            return [];
+        }
+    }
 }
 
+/* ╔════════════════════════════════════════════════════╗
+   ║ 🚀 EXPORT CONFIG INSTANCE                             ║
+   ╚════════════════════════════════════════════════════╝ */
 export default new Config();
