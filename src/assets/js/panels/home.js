@@ -80,7 +80,7 @@ class Home {
 			block.classList.add('news-block');
 			block.innerHTML = `
 				<div class="news-header">
-					<img class="server-status-icon" src="assets/images/icon.png">
+					<img class="server-status-icon" src="assets/images/waloucorp.png">
 					<div class="header-text">
 						<div class="title">${News.title}</div>
 					</div>
